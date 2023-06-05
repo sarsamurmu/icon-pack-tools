@@ -1,0 +1,107 @@
+buildscript {
+    dependencies {
+        classpath 'net.jsign:jsign-gradle-plugin:5.0'
+    }
+}
+
+plugins {
+    id 'java'
+    id 'application'
+    id 'edu.sc.seis.launch4j' version '3.0.1'
+    id 'com.github.gmazzo.buildconfig' version '3.1.0'
+}
+
+apply plugin: 'net.jsign'
+
+group = 'sarsamurmu.ipt'
+version = '0.0.1'
+
+buildConfig {
+    packageName("${project.group}")
+
+    buildConfigField("String", "APP_VERSION", "\"${project.version}\"")
+}
+
+application {
+    mainClassName = 'sarsamurmu.ipt.Main'
+    applicationDefaultJvmArgs = [
+            '-Dorg.lwjgl.util.Debug=true',
+            '-Dorg.lwjgl.util.DebugLoader=true',
+            '-Dsarsa.debug=true'
+    ]
+}
+
+jar {
+    manifest {
+        attributes "Main-Class": application.mainClass.get()
+    }
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    from ("$projectDir/src/main/res") {
+        into "res"
+    }
+
+    archiveFileName = 'IPT.jar'
+    destinationDirectory.set(file("$projectDir/out"))
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+}
+
+launch4j {
+    mainClassName = application.mainClass.get()
+    icon = "${projectDir}/src/main/res/icon.ico"
+    copyright = 'Sarsa Murmu'
+    windowTitle = 'Icon Pack Tools'
+    //companyName = ''
+}
+
+tasks.register('sign') {
+    Properties props = new Properties()
+    if (rootProject.file('local.properties').exists()) {
+        props.load(rootProject.file('local.properties').newDataInputStream())
+    }
+
+    doLast {
+        jsign(
+                file: 'build/launch4j/IPT.exe',
+                name: 'Icon Pack Tools',
+                url: 'https://sarsamurmu.github.io',
+                keystore: 'ipt.jks',
+                alias: props.containsKey('KEY_ALIAS') ? props.get('KEY_ALIAS') : System.getenv('KEY_ALIAS'),
+                storepass: props.containsKey('KEY_PASS') ? props.get('KEY_PASS') : System.getenv('KEY_PASS'),
+                tsaurl: 'http://timestamp.sectigo.com'
+        )
+    }
+}
+
+tasks.register('makeExe') {
+    dependsOn(createExe)
+    dependsOn(sign)
+    copy {
+        from "$projectDir/build/launch4j/"
+        include "**/*.exe"
+        into "$projectDir/out/"
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // testImplementation platform('org.junit:junit-bom:5.9.1')
+    // testImplementation 'org.junit.jupiter:junit-jupiter'
+    implementation 'com.formdev:flatlaf:3.1.1'
+    implementation 'com.formdev:flatlaf-fonts-inter:3.19'
+    implementation 'com.formdev:flatlaf-fonts-jetbrains-mono:2.242'
+    implementation 'com.miglayout:miglayout-swing:11.1'
+    implementation 'org.lwjgl:lwjgl-tinyfd:3.3.2'
+
+    implementation 'org.jetbrains:annotations:24.0.0'
+
+    implementation(
+            fileTree("libs/") {
+                include("*.jar")
+            }
+    )
+}
